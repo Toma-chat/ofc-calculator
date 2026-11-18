@@ -98,6 +98,10 @@ function render() {
     select.setAttribute('aria-label', `${PLAYERS[p]}の${ROWS[Number(select.dataset.role)]}の役：${name} ${state.bust[p] ? '無効' : points + '点'}`);
     field.dataset.active = points > 0;
     field.dataset.disabled = state.bust[p];
+    const row = Number(select.dataset.role);
+    const invalid = result.errors[p].some(error => error.upper === row || error.lower === row);
+    field.dataset.invalid = invalid;
+    select.setAttribute('aria-invalid', invalid);
     field.querySelector('.role-name').textContent = name;
     field.querySelector('.role-points').textContent = state.bust[p] ? '無効' : `${points}点`;
   });
@@ -116,7 +120,14 @@ function render() {
     select.value = state.ranks[Number(select.dataset.rank)][Number(select.dataset.player)] ?? '';
   });
   app.querySelector('.result').innerHTML = `<div class="result-heading">この対戦の収支</div><div class="totals">${names().map((name, p) => `<div><span class="result-name">${name}</span><div class="number">${result.totals[p] === null ? '—' : signed(result.totals[p]) + '<span class="unit">点</span>'}</div></div>`).join('')}</div><div class="result-status">${result.totals.includes(null) ? '役と勝敗を選ぶと自動計算' : count === 3 ? '3組の精算を合算 · 合計0点' : '勝敗・スクープ・役の差を含む'}</div>`;
-  app.querySelector('.pairs').innerHTML = result.pairs.map(pair => `<button class="pair" type="button" data-pair="${pair.a}-${pair.b}" ${pair.ready ? '' : 'disabled'} aria-label="${PLAYERS[pair.a]}対${PLAYERS[pair.b]}の内訳"><span>${PLAYERS[pair.a]} <span class="versus">対</span> ${PLAYERS[pair.b]}</span><strong>${pair.ready ? signed(pair.total) + '点' : '未入力'}</strong><span class="pair-detail">${pair.ready ? `勝敗 ${signed(pair.base)} / スクープ ${signed(pair.scoop)} / 役 ${signed(pair.royalty)}` : '勝敗・順位を選択'}</span></button>`).join('');
+  const invalidPlayers = result.errors.flatMap((errors, p) => errors.length ? [`${PLAYERS[p]}：バストしています（${errors.map(error => error.message).join('・')}）`] : []);
+  if (invalidPlayers.length) {
+    const status = app.querySelector('.result-status');
+    status.classList.add('bust-error');
+    status.setAttribute('role', 'alert');
+    status.textContent = invalidPlayers.join('／') + '。役を修正するか「バスト」にチェックしてください。';
+  }
+  app.querySelector('.pairs').innerHTML = result.pairs.map(pair => { const invalid = result.errors[pair.a].length || result.errors[pair.b].length; return `<button class="pair" type="button" data-pair="${pair.a}-${pair.b}" ${pair.ready ? '' : 'disabled'} aria-label="${PLAYERS[pair.a]}対${PLAYERS[pair.b]}の内訳"><span>${PLAYERS[pair.a]} <span class="versus">対</span> ${PLAYERS[pair.b]}</span><strong>${pair.ready ? signed(pair.total) + '点' : invalid ? '役を確認' : '未入力'}</strong><span class="pair-detail">${pair.ready ? `勝敗 ${signed(pair.base)} / スクープ ${signed(pair.scoop)} / 役 ${signed(pair.royalty)}` : invalid ? 'バストを確認してください' : '勝敗・順位を選択'}</span></button>`; }).join('');
 }
 
 app.addEventListener('click', event => {

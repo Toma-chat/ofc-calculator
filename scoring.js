@@ -9,13 +9,30 @@ export const ROYALTIES = [
 export function freshState() {
   return { roles: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], bust: [false, false, false], wins: [null, null, null], ranks: [[null, null, null], [null, null, null], [null, null, null]] };
 }
+// Zero means no royalty, not necessarily a high card: middle may be two pair,
+// and bottom may be three of a kind. Only flag reversals proven by these inputs.
+export function detectBust(roles, player) {
+  const categories = [
+    value => value >= 10 ? [3, 3] : value > 0 ? [1, 1] : [0, 1],
+    value => value === 0 ? [0, 2] : [({ 2: 3, 4: 4, 8: 5, 12: 6, 20: 7, 30: 8, 50: 9 })[value]],
+    value => value === 0 ? [0, 3] : [({ 2: 4, 4: 5, 6: 6, 10: 7, 15: 8, 25: 9 })[value]]
+  ];
+  return [0, 1].flatMap(row => {
+    const upper = categories[row](roles[row][player]);
+    const lower = categories[row + 1](roles[row + 1][player]);
+    return upper[0] > (lower[1] ?? lower[0]) ? [{ upper: row, lower: row + 1, message: `${ROWS[row]}が${ROWS[row + 1]}より強い役です` }] : [];
+  });
+}
 export function calculate(state, count) {
+  const errors = PLAYERS.slice(0, count).map((_, p) => state.bust[p] ? [] : detectBust(state.roles, p));
   const bonus = PLAYERS.map((_, p) => state.bust[p] ? 0 : state.roles.reduce((sum, row) => sum + row[p], 0));
   const totals = Array(count).fill(0), pending = Array(count).fill(false), pairs = [];
   for (let a = 0; a < count; a++) {
     for (let b = a + 1; b < count; b++) {
       let base = 0, scoop = 0, royalty = 0, ready = true;
-      if (state.bust[a] && state.bust[b]) {
+      if (errors[a].length || errors[b].length) {
+        ready = false;
+      } else if (state.bust[a] && state.bust[b]) {
         // Both invalid hands settle at zero, including royalties.
       } else if (state.bust[a] || state.bust[b]) {
         base = state.bust[a] ? -3 : 3;
@@ -37,5 +54,5 @@ export function calculate(state, count) {
       else { pending[a] = pending[b] = true; }
     }
   }
-  return { bonus, totals: totals.map((value, p) => pending[p] ? null : value), pairs };
+  return { bonus, errors, totals: totals.map((value, p) => pending[p] ? null : value), pairs };
 }

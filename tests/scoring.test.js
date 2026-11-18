@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { freshState, calculate } from '../scoring.js';
+import { freshState, calculate, detectBust } from '../scoring.js';
 
 test('2 wins / 1 loss adds royalty difference without a scoop', () => {
   const s = freshState(); s.wins = [1, 1, -1]; s.roles[0] = [7, 0, 0]; s.roles[2] = [4, 2, 0];
@@ -14,7 +14,7 @@ test('all wins scoop; a tied row prevents a scoop', () => {
 test('bust ignores own royalties, restores them when unchecked, and both bust settle zero', () => {
   const s = freshState(); s.roles[0] = [22, 9, 0]; s.bust[0] = true;
   assert.deepEqual(calculate(s, 2).totals, [-15, 15]);
-  s.bust[0] = false; s.wins = [0, 0, 0]; assert.deepEqual(calculate(s, 2).totals, [13, -13]);
+  s.bust[0] = false; s.roles[1][0] = 2; s.wins = [0, 0, 0]; assert.deepEqual(calculate(s, 2).totals, [15, -15]);
   s.bust = [true, true, false]; assert.deepEqual(calculate(s, 2).totals, [0, 0]);
 });
 test('3 players settle every pair, including pair-specific scoops', () => {
@@ -41,4 +41,40 @@ test('exhaustive three-player ranks and bust combinations always balance to zero
 });
 test('missing results do not masquerade as a zero score', () => {
   assert.deepEqual(calculate(freshState(), 2).totals, [null, null]);
+});
+test('royalty amounts are not hand strengths: same categories may tie', () => {
+  const s = freshState(); s.roles[1][0] = 8; s.roles[2][0] = 4;
+  assert.deepEqual(detectBust(s.roles, 0), []);
+  s.roles[0][0] = 22; s.roles[1][0] = 2; s.roles[2][0] = 0;
+  assert.deepEqual(detectBust(s.roles, 0), []);
+});
+test('detects proven upper/middle and middle/bottom reversals', () => {
+  const s = freshState(); s.roles[0][0] = 10;
+  assert.equal(detectBust(s.roles, 0)[0].upper, 0);
+  s.roles[0][0] = 0; s.roles[1][0] = 8; s.roles[2][0] = 2;
+  assert.equal(detectBust(s.roles, 0)[0].upper, 1);
+  s.roles[1][0] = 4; s.roles[2][0] = 0;
+  assert.equal(detectBust(s.roles, 0).length, 1);
+});
+test('no royalty may include pairs, two pair or bottom trips without a false warning', () => {
+  const s = freshState(); s.roles[0][0] = 9;
+  assert.deepEqual(detectBust(s.roles, 0), []);
+  s.roles[1][0] = 2;
+  assert.deepEqual(detectBust(s.roles, 0), []);
+});
+test('invalid roles suspend related scores until corrected or explicitly marked bust', () => {
+  const s = freshState(); s.wins = [1, 1, 1]; s.roles[1][0] = 8; s.roles[2][0] = 2;
+  assert.deepEqual(calculate(s, 2).totals, [null, null]);
+  s.bust[0] = true;
+  assert.deepEqual(calculate(s, 2).totals, [-6, 6]);
+  assert.deepEqual(calculate(s, 2).errors[0], []);
+  s.bust[0] = false; s.roles[2][0] = 4;
+  assert.deepEqual(calculate(s, 2).totals, [18, -18]);
+});
+test('three-player warnings keep the unaffected pair available', () => {
+  const s = freshState(); s.roles[1][2] = 8; s.ranks = [[1, 2, 3], [1, 2, 3], [1, 2, 3]];
+  const result = calculate(s, 3);
+  assert.equal(result.pairs[0].total, 6);
+  assert.equal(result.pairs[1].ready, false);
+  assert.equal(result.errors[2].length, 1);
 });
