@@ -14,7 +14,7 @@ function build() {
   app.querySelectorAll('[data-players]').forEach(button => button.setAttribute('aria-pressed', Number(button.dataset.players) === count));
   app.querySelector('.matrix').innerHTML = `<span></span>${names().map(name => `<strong class="person">${name}</strong>`).join('')}
     <span></span>${names().map((_, p) => `<label class="bust"><input type="checkbox" data-bust="${p}">バスト</label>`).join('')}
-    ${ROWS.map((row, r) => `<span class="row-label">${row}</span>${names().map((name, p) => `<select data-role="${r}" data-player="${p}" aria-label="${name}の${row}の役">${ROYALTIES[r].map(([name, value]) => `<option value="${value}">${name}${value ? ' ' + value + '点' : ''}</option>`).join('')}</select>`).join('')}`).join('')}
+    ${ROWS.map((row, r) => `<span class="row-label">${row}</span>${names().map((name, p) => `<div class="role-field"><div class="role-display" aria-hidden="true"><span class="role-name">なし</span><span class="role-bottom"><span class="role-points">0点</span><span class="role-chevron">⌄</span></span></div><select data-role="${r}" data-player="${p}" aria-label="${name}の${row}の役">${ROYALTIES[r].map(([name, value]) => `<option value="${value}">${name} · ${value}点</option>`).join('')}</select></div>`).join('')}`).join('')}
     <span></span>${names().map((_, p) => `<div class="bonus" data-bonus="${p}"></div>`).join('')}`;
   app.querySelector('.outcomes h2').textContent = count === 2 ? '各段の勝者' : '各段の順位';
   app.querySelector('.wins').innerHTML = count === 2 ? ROWS.map((row, r) => `<div class="win-row"><span>${row}</span><div class="segments" role="group" aria-label="${row}の勝者">${['BTN', '分け', 'A'].map((name, i) => `<button type="button" data-win="${r}" data-value="${1 - i}" aria-pressed="false">${name}</button>`).join('')}</div></div>`).join('') :
@@ -29,6 +29,12 @@ function render() {
     const p = Number(select.dataset.player);
     select.value = state.roles[Number(select.dataset.role)][p];
     select.disabled = state.bust[p];
+    const field = select.closest('.role-field');
+    const [name, points] = ROYALTIES[Number(select.dataset.role)].find(([, value]) => value === Number(select.value));
+    field.dataset.active = points > 0;
+    field.dataset.disabled = state.bust[p];
+    field.querySelector('.role-name').textContent = name;
+    field.querySelector('.role-points').textContent = state.bust[p] ? '無効' : `${points}点`;
   });
   app.querySelectorAll('[data-bust]').forEach(input => { input.checked = state.bust[Number(input.dataset.bust)]; });
   app.querySelectorAll('[data-bonus]').forEach(el => {
