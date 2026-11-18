@@ -27,6 +27,8 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html styles.css app.js scoring.js icon.svg .nojekyll _site/
+          cp manifest.webmanifest _site/
+          cp -R icons _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
